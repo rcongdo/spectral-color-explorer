@@ -742,8 +742,50 @@ function updateFull() {
   checkMetamerism(results);
 }
 
-// Stub — replaced with real implementation in Task 12
-function checkMetamerism() {}
+function checkMetamerism(results) {
+  // Hide all badges first
+  document.querySelectorAll('.metameric-badge').forEach(el => el.style.display = 'none');
+
+  if (results.length < 2) return;
+
+  // Check every pair
+  for (let i = 0; i < results.length; i++) {
+    for (let j = i + 1; j < results.length; j++) {
+      const dE = ciede2000(results[i].lab, results[j].lab);
+      if (dE > 2.0) {
+        // Mark both cards
+        [results[i].illuminantKey, results[j].illuminantKey].forEach(key => {
+          const badge = document.querySelector(`.metameric-badge[data-illuminant="${key}"]`);
+          if (badge) badge.style.display = 'block';
+        });
+      }
+    }
+  }
+}
+
+// ── Keyboard nudge ───────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (selectedCP === null) return;
+  const step = e.shiftKey ? 5 : 1;
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    controlPoints[selectedCP] = Math.min(100, controlPoints[selectedCP] + step);
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    controlPoints[selectedCP] = Math.max(0, controlPoints[selectedCP] - step);
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    selectedCP = Math.max(0, selectedCP - 1);
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    selectedCP = Math.min(10, selectedCP + 1);
+  } else {
+    return;
+  }
+  renderControlPoints();
+  renderSpline();
+  updateFull();
+});
 
 // ── Startup ──────────────────────────────────────────────────
 initGraph();
