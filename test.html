@@ -100,6 +100,144 @@ function computeXYZ(reflectance, spd) {
   }
   return { X: X * k, Y: Y * k, Z: Z * k, Xn: Xn * k, Yn: Yn * k, Zn: Zn * k };
 }
+
+// ── XYZ → L*a*b* ────────────────────────────────────────────
+function xyzToLab({ X, Y, Z }, { Xn, Yn, Zn }) {
+  function f(t) {
+    const d = 6 / 29;
+    return t > d * d * d ? Math.cbrt(t) : t / (3 * d * d) + 4 / 29;
+  }
+  const fx = f(X / Xn), fy = f(Y / Yn), fz = f(Z / Zn);
+  return {
+    L: 116 * fy - 16,
+    a: 500 * (fx - fy),
+    b: 200 * (fy - fz),
+  };
+}
+
+// ── XYZ → sRGB ──────────────────────────────────────────────
+const D65_WP = { Xn: 95.047, Yn: 100, Zn: 108.883 };
+
+const BRADFORD = [
+  [ 0.8951,  0.2664, -0.1614],
+  [-0.7502,  1.7135,  0.0367],
+  [ 0.0389, -0.0685,  1.0296],
+];
+const BRADFORD_INV = [
+  [ 0.9869929, -0.1470543,  0.1599627],
+  [ 0.4323053,  0.5183603,  0.0492912],
+  [-0.0085287,  0.0400428,  0.9684867],
+];
+
+function mat3x3(m, v) {
+  return [
+    m[0][0]*v[0] + m[0][1]*v[1] + m[0][2]*v[2],
+    m[1][0]*v[0] + m[1][1]*v[1] + m[1][2]*v[2],
+    m[2][0]*v[0] + m[2][1]*v[1] + m[2][2]*v[2],
+  ];
+}
+
+function bradfordAdapt(xyz, src, dst = D65_WP) {
+  if (Math.abs(src.Xn - dst.Xn) < 0.01 &&
+      Math.abs(src.Zn - dst.Zn) < 0.01) return xyz;
+  const srcCone = mat3x3(BRADFORD, [src.Xn, src.Yn, src.Zn]);
+  const dstCone = mat3x3(BRADFORD, [dst.Xn, dst.Yn, dst.Zn]);
+  const xyzCone = mat3x3(BRADFORD, [xyz.X, xyz.Y, xyz.Z]);
+  const adapted = [
+    xyzCone[0] * dstCone[0] / srcCone[0],
+    xyzCone[1] * dstCone[1] / srcCone[1],
+    xyzCone[2] * dstCone[2] / srcCone[2],
+  ];
+  const [X, Y, Z] = mat3x3(BRADFORD_INV, adapted);
+  return { X, Y, Z };
+}
+
+const M_XYZ_SRGB = [
+  [ 3.2406, -1.5372, -0.4986],
+  [-0.9689,  1.8758,  0.0415],
+  [ 0.0557, -0.2040,  1.0570],
+];
+
+function srgbGamma(c) {
+  return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+}
+
+function xyzToSRGB(xyz, wp) {
+  const adapted = bradfordAdapt(xyz, wp);
+  const lin = mat3x3(M_XYZ_SRGB, [adapted.X / 100, adapted.Y / 100, adapted.Z / 100]);
+  const r = srgbGamma(lin[0]);
+  const g = srgbGamma(lin[1]);
+  const b = srgbGamma(lin[2]);
+  const isClipped = r > 1 || g > 1 || b > 1 || r < 0 || g < 0 || b < 0;
+  const rc = Math.max(0, Math.min(1, r));
+  const gc = Math.max(0, Math.min(1, g));
+  const bc = Math.max(0, Math.min(1, b));
+  const hex = '#' + [rc, gc, bc].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+  return { r: rc, g: gc, b: bc, hex, isClipped };
+}
+
+// ── CIEDE2000 ────────────────────────────────────────────────
+function ciede2000(lab1, lab2) {
+  const { L: L1, a: a1, b: b1 } = lab1;
+  const { L: L2, a: a2, b: b2 } = lab2;
+
+  const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+  const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+  const Cbar7 = Math.pow((C1 + C2) / 2, 7);
+  const G = 0.5 * (1 - Math.sqrt(Cbar7 / (Cbar7 + Math.pow(25, 7))));
+  const a1p = a1 * (1 + G), a2p = a2 * (1 + G);
+  const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+  const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+
+  function atan2deg(b, a) {
+    let h = Math.atan2(b, a) * 180 / Math.PI;
+    return h < 0 ? h + 360 : h;
+  }
+  const h1p = C1p < 1e-10 ? 0 : atan2deg(b1, a1p);
+  const h2p = C2p < 1e-10 ? 0 : atan2deg(b2, a2p);
+
+  const dLp = L2 - L1;
+  const dCp = C2p - C1p;
+
+  let dhp;
+  if (C1p * C2p < 1e-10) dhp = 0;
+  else if (Math.abs(h2p - h1p) <= 180) dhp = h2p - h1p;
+  else if (h2p - h1p > 180) dhp = h2p - h1p - 360;
+  else dhp = h2p - h1p + 360;
+
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin(dhp * Math.PI / 360);
+
+  const LbarpM = (L1 + L2) / 2;
+  const CbarpM = (C1p + C2p) / 2;
+
+  let HbarpM;
+  if (C1p * C2p < 1e-10) HbarpM = h1p + h2p;
+  else if (Math.abs(h1p - h2p) <= 180) HbarpM = (h1p + h2p) / 2;
+  else if (h1p + h2p < 360) HbarpM = (h1p + h2p + 360) / 2;
+  else HbarpM = (h1p + h2p - 360) / 2;
+
+  const T = 1
+    - 0.17 * Math.cos((HbarpM - 30) * Math.PI / 180)
+    + 0.24 * Math.cos(2 * HbarpM * Math.PI / 180)
+    + 0.32 * Math.cos((3 * HbarpM + 6) * Math.PI / 180)
+    - 0.20 * Math.cos((4 * HbarpM - 63) * Math.PI / 180);
+
+  const SL = 1 + 0.015 * Math.pow(LbarpM - 50, 2) / Math.sqrt(20 + Math.pow(LbarpM - 50, 2));
+  const SC = 1 + 0.045 * CbarpM;
+  const SH = 1 + 0.015 * CbarpM * T;
+
+  const CbarpM7 = Math.pow(CbarpM, 7);
+  const RC = 2 * Math.sqrt(CbarpM7 / (CbarpM7 + Math.pow(25, 7)));
+  const dTheta = 30 * Math.exp(-Math.pow((HbarpM - 275) / 25, 2));
+  const RT = -Math.sin(2 * dTheta * Math.PI / 180) * RC;
+
+  return Math.sqrt(
+    Math.pow(dLp / SL, 2) +
+    Math.pow(dCp / SC, 2) +
+    Math.pow(dHp / SH, 2) +
+    RT * (dCp / SC) * (dHp / SH)
+  );
+}
 </script>
 <script>
 // Tests run after math-under-test is defined
@@ -136,6 +274,35 @@ window.addEventListener('DOMContentLoaded', () => {
   assert('black X = 0', blackXYZ.X, 0, 0.001);
   assert('black Y = 0', blackXYZ.Y, 0, 0.001);
   assert('black Z = 0', blackXYZ.Z, 0, 0.001);
+
+  suite('xyzToLab');
+  // D65 perfect white → L*=100, a*=0, b*=0
+  const d65White = { X: 95.047, Y: 100, Z: 108.883 };
+  const d65Wp = { Xn: 95.047, Yn: 100, Zn: 108.883 };
+  const labWhite = xyzToLab(d65White, d65Wp);
+  assert('white L* = 100', labWhite.L, 100, 0.5);
+  assert('white a* ≈ 0', labWhite.a, 0, 0.5);
+  assert('white b* ≈ 0', labWhite.b, 0, 0.5);
+
+  // D65 perfect black → L*=0
+  const labBlack = xyzToLab({ X: 0, Y: 0, Z: 0 }, d65Wp);
+  assert('black L* = 0', labBlack.L, 0, 0.01);
+
+  suite('xyzToSRGB');
+  // D65 perfect white → RGB (1,1,1), no clip
+  const rgbWhite = xyzToSRGB(d65White, d65Wp);
+  assert('white r = 1', rgbWhite.r, 1.0, 0.01);
+  assert('white g = 1', rgbWhite.g, 1.0, 0.01);
+  assert('white b = 1', rgbWhite.b, 1.0, 0.01);
+  assert('white isClipped = false', rgbWhite.isClipped ? 1 : 0, 0);
+
+  suite('ciede2000');
+  // Identical colors → ΔE = 0
+  assert('identical ΔE = 0', ciede2000({L:50,a:25,b:-30}, {L:50,a:25,b:-30}), 0, 0.001);
+  // Known pair from Sharma 2005 Table 1, pair 1: ΔE00 = 2.0425
+  assert('Sharma pair1 ΔE00',
+    ciede2000({L:50.0000,a:2.6772,b:-79.7751},{L:50.0000,a:0.0000,b:-82.7485}),
+    2.0425, 0.05);
 
   summary();
 });
