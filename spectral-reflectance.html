@@ -596,6 +596,40 @@ function renderIlluminantOverlays() {
   });
 }
 
+// ── Illuminant Chips ─────────────────────────────────────────
+function renderIlluminantChips() {
+  const container = document.getElementById('illuminant-chips');
+  container.innerHTML = '';
+  Object.entries(ILLUMINANT_CONFIG).forEach(([key, cfg]) => {
+    const btn = document.createElement('button');
+    btn.className = 'illuminant-chip' + (activeIlluminants.includes(key) ? ' active' : '');
+    btn.textContent = cfg.label;
+    if (activeIlluminants.includes(key)) btn.style.background = cfg.chipColor;
+
+    // Disable unchosen chips when 3 are active
+    if (!activeIlluminants.includes(key) && activeIlluminants.length >= 3) {
+      btn.disabled = true;
+    }
+
+    btn.addEventListener('click', () => toggleIlluminant(key));
+    container.appendChild(btn);
+  });
+}
+
+function toggleIlluminant(key) {
+  const idx = activeIlluminants.indexOf(key);
+  if (idx !== -1) {
+    if (activeIlluminants.length === 1) return; // keep at least one
+    activeIlluminants.splice(idx, 1);
+  } else {
+    if (activeIlluminants.length >= 3) activeIlluminants.shift(); // drop oldest
+    activeIlluminants.push(key);
+  }
+  renderIlluminantChips();
+  renderIlluminantOverlays();
+  updateFull();
+}
+
 // Stubs — replaced with real implementations in Tasks 9–12
 function updateSwatchesLive() {}
 function updateFull() {}
@@ -603,6 +637,7 @@ function checkMetamerism() {}
 
 // ── Startup ──────────────────────────────────────────────────
 initGraph();
+renderIlluminantChips();
 renderControlPoints();
 renderSpline();
 renderIlluminantOverlays();
