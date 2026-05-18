@@ -351,6 +351,98 @@ function ciede2000(lab1, lab2) {
     RT * (dCp / SC) * (dHp / SH)
   );
 }
+
+// ── SVG Graph ────────────────────────────────────────────────
+const SVG_ML = 55, SVG_MT = 20, SVG_PW = 750, SVG_PH = 280;
+
+function nmToSvgX(nm) { return SVG_ML + (nm - 380) / 400 * SVG_PW; }
+function reflToSvgY(r) { return SVG_MT + (1 - r / 100) * SVG_PH; }
+function svgYToRefl(y) { return (1 - (y - SVG_MT) / SVG_PH) * 100; }
+
+function svgEl(tag, attrs = {}) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function initGraph() {
+  const svg = document.getElementById('spectral-graph');
+  svg.innerHTML = '';
+
+  // ── Spectrum gradient bar ──
+  const defs = svgEl('defs');
+  const grad = svgEl('linearGradient', { id: 'spectrumGrad', x1: '0%', x2: '100%' });
+  const spectrumColors = [
+    [0,   '#5B0EEB'], [10, '#3B0ACC'], [20, '#2100ff'],
+    [30, '#0047ff'], [40, '#00c8ff'], [50, '#00ff57'],
+    [60, '#aaff00'], [70, '#ffcc00'], [80, '#ff7700'],
+    [90, '#ff2200'], [100,'#8B0000'],
+  ];
+  spectrumColors.forEach(([pct, color]) => {
+    const stop = svgEl('stop', { offset: `${pct}%`, 'stop-color': color });
+    grad.appendChild(stop);
+  });
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  const barY = SVG_MT + SVG_PH + 10;
+  svg.appendChild(svgEl('rect', {
+    x: SVG_ML, y: barY, width: SVG_PW, height: 8,
+    fill: 'url(#spectrumGrad)', rx: 2,
+  }));
+
+  // ── Grid lines and X-axis labels ──
+  const wavelengths = [400,450,500,550,600,650,700,750];
+  wavelengths.forEach(wl => {
+    const x = nmToSvgX(wl);
+    svg.appendChild(svgEl('line', {
+      x1: x, y1: SVG_MT, x2: x, y2: SVG_MT + SVG_PH,
+      stroke: '#1e293b', 'stroke-width': 1,
+    }));
+    svg.appendChild(svgEl('text', {
+      x, y: barY + 22, fill: '#475569', 'font-size': 10,
+      'text-anchor': 'middle', 'font-family': 'monospace',
+    })).textContent = wl;
+  });
+
+  // ── Y-axis labels and grid ──
+  [0, 25, 50, 75, 100].forEach(r => {
+    const y = reflToSvgY(r);
+    svg.appendChild(svgEl('line', {
+      x1: SVG_ML, y1: y, x2: SVG_ML + SVG_PW, y2: y,
+      stroke: r === 0 || r === 100 ? '#334155' : '#1a2744', 'stroke-width': 1,
+    }));
+    svg.appendChild(svgEl('text', {
+      x: SVG_ML - 8, y: y + 3.5, fill: '#475569', 'font-size': 10,
+      'text-anchor': 'end', 'font-family': 'monospace',
+    })).textContent = r + '%';
+  });
+
+  // ── Axis labels ──
+  const axisLabelY = svgEl('text', {
+    x: 12, y: SVG_MT + SVG_PH / 2, fill: '#475569', 'font-size': 10,
+    'text-anchor': 'middle', 'font-family': 'monospace',
+    transform: `rotate(-90, 12, ${SVG_MT + SVG_PH / 2})`,
+  });
+  axisLabelY.textContent = 'Reflectance %';
+  svg.appendChild(axisLabelY);
+
+  const axisLabelX = svgEl('text', {
+    x: SVG_ML + SVG_PW / 2, y: barY + 36, fill: '#475569', 'font-size': 10,
+    'text-anchor': 'middle', 'font-family': 'monospace',
+  });
+  axisLabelX.textContent = 'Wavelength (nm)';
+  svg.appendChild(axisLabelX);
+
+  // ── Placeholder groups for dynamic content ──
+  svg.appendChild(svgEl('g', { id: 'illuminant-overlays' }));
+  svg.appendChild(svgEl('g', { id: 'spline-path-group' }));
+  svg.appendChild(svgEl('g', { id: 'cp-group' }));
+  svg.appendChild(svgEl('g', { id: 'tooltip-group' }));
+}
+
+// ── Startup ──────────────────────────────────────────────────
+initGraph();
 </script>
 </body>
 </html>
