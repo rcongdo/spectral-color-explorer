@@ -168,7 +168,7 @@ function xyzToSRGB(xyz, wp) {
   const r = srgbGamma(lin[0]);
   const g = srgbGamma(lin[1]);
   const b = srgbGamma(lin[2]);
-  const isClipped = r > 1 || g > 1 || b > 1 || r < 0 || g < 0 || b < 0;
+  const isClipped = r > 1.001 || g > 1.001 || b > 1.001 || r < -0.001 || g < -0.001 || b < -0.001;
   const rc = Math.max(0, Math.min(1, r));
   const gc = Math.max(0, Math.min(1, g));
   const bc = Math.max(0, Math.min(1, b));
