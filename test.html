@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Tests</title>
+<style>
+  body { font-family: monospace; padding: 1rem; background: #0f172a; color: #94a3b8; }
+  .pass { color: #4ade80; } .fail { color: #f87171; } .suite { margin-top: 1rem; font-weight: bold; color: #e2e8f0; }
+</style>
+</head>
+<body>
+<script>
+let passed = 0, failed = 0;
+function assert(desc, actual, expected, tol = 0) {
+  const ok = Math.abs(actual - expected) <= tol;
+  const el = document.createElement('div');
+  el.className = ok ? 'pass' : 'fail';
+  el.textContent = `${ok ? '✓' : '✗'} ${desc}: got ${actual.toFixed ? actual.toFixed(4) : actual}, expected ${expected}`;
+  document.body.appendChild(el);
+  ok ? passed++ : failed++;
+}
+function suite(name) {
+  const el = document.createElement('div');
+  el.className = 'suite';
+  el.textContent = name;
+  document.body.appendChild(el);
+}
+function summary() {
+  const el = document.createElement('div');
+  el.style.marginTop = '1rem';
+  el.style.color = failed ? '#f87171' : '#4ade80';
+  el.textContent = `${passed} passed, ${failed} failed`;
+  document.body.appendChild(el);
+}
+</script>
+<!-- Math under test is copy-pasted here from the main file after each task -->
+<script id="math-under-test">
+const NM_START = 380, NM_STEP = 5, NM_COUNT = 81;
+
+// ── Catmull-Rom Spline ───────────────────────────────────────
+// Control points are at 380,420,...,780nm (11 CPs, 40nm spacing).
+// Returns 81 reflectance samples at 5nm intervals, clamped 0–100.
+function evaluateSpline(cps) {
+  const result = new Array(NM_COUNT);
+  // For each 5nm output sample, find which 40nm CP segment it falls in
+  for (let i = 0; i < NM_COUNT; i++) {
+    const wl = NM_START + i * NM_STEP;          // 380..780
+    const segF = (wl - NM_START) / 40;          // 0..10 float
+    const seg = Math.min(Math.floor(segF), 9);  // segment index 0–9
+    const t = segF - seg;                        // 0..1 within segment
+
+    // Catmull-Rom: points p0..p3 bracket the segment
+    const p0 = cps[Math.max(0, seg - 1)];
+    const p1 = cps[seg];
+    const p2 = cps[seg + 1];
+    const p3 = cps[Math.min(10, seg + 2)];
+
+    const v = 0.5 * (
+      2 * p1 +
+      (-p0 + p2) * t +
+      (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+      (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t
+    );
+    result[i] = Math.max(0, Math.min(100, v));
+  }
+  return result;
+}
+</script>
+<script>
+// Tests run after math-under-test is defined
+window.addEventListener('DOMContentLoaded', () => {
+  suite('evaluateSpline');
+  // Flat curve: all control points at 50% — every sample must be 50%
+  const flat = [50,50,50,50,50,50,50,50,50,50,50];
+  const flatResult = evaluateSpline(flat);
+  assert('flat curve length is 81', flatResult.length, 81);
+  assert('flat curve[0] = 50', flatResult[0], 50, 0.01);
+  assert('flat curve[40] = 50', flatResult[40], 50, 0.01);
+  assert('flat curve[80] = 50', flatResult[80], 50, 0.01);
+
+  // Control point passthrough: the sample at each CP wavelength must match the CP value
+  const ramp = [0,10,20,30,40,50,60,70,80,90,100];
+  const rampResult = evaluateSpline(ramp);
+  // CP wavelengths are 380,420,...,780 → 40nm steps. In 5nm result array: 380→0, 420→8, 460→16...
+  assert('ramp cp0 passthrough (380nm)', rampResult[0],  0,   0.1);
+  assert('ramp cp1 passthrough (420nm)', rampResult[8],  10,  0.1);
+  assert('ramp cp5 passthrough (580nm)', rampResult[40], 50,  0.1);
+  assert('ramp cp10 passthrough (780nm)', rampResult[80],100, 0.1);
+
+  summary();
+});
+</script>
+</body>
+</html>
