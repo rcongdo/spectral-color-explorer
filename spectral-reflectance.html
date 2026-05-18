@@ -146,13 +146,13 @@ const ILLUMINANT_CONFIG = {
 const PRESETS = {
   'flat-white':   [100,100,100,100,100,100,100,100,100,100],
   'neutral-gray': [50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
-  cyan:           [72, 75, 70, 68, 65, 20, 10, 8,  8,  10],
-  magenta:        [55, 35, 15, 10, 12, 55, 70, 72, 70, 68],
-  yellow:         [8,  10, 12, 50, 72, 80, 82, 80, 78, 75],
-  black:          [5,  5,  5,  5,  5,  5,  5,  5,  5,  5 ],
-  red:            [8,  6,  5,  5,  6,  25, 65, 80, 82, 80],
-  green:          [10, 12, 20, 55, 70, 65, 20, 10, 8,  8 ],
-  blue:           [20, 40, 60, 30, 10, 8,  8,  7,  7,  8 ],
+  cyan:           [60, 68, 75, 78, 72, 18,  6,  5,  5,  6 ],
+  magenta:        [60, 62, 58, 10,  8, 52, 85, 88, 86, 84 ],
+  yellow:         [5,   6,  8, 72, 90, 92, 91, 90, 88, 86 ],
+  black:          [5,   5,  5,  5,  5,  5,  5,  5,  5,  5 ],
+  red:            [5,   5,  5,  5,  8, 28, 82, 90, 88, 86 ],
+  green:          [6,   8, 12, 68, 85, 72, 16,  6,  5,  5 ],
+  blue:           [12, 28, 75, 68, 10,  5,  4,  4,  4,  5 ],
 };
 
 // App state
@@ -225,16 +225,10 @@ function xyzToLab({ X, Y, Z }, { Xn, Yn, Zn }) {
 }
 
 // ── XYZ → sRGB ──────────────────────────────────────────────
-// Direct XYZ → sRGB without chromatic adaptation, so illuminant color
-// cast is visible (illuminant A appears warm, etc.). XYZ values are on
-// a scale where Y=100 for a perfect white reflector under D65.
-
-// D65-referenced XYZ → linear sRGB matrix (IEC 61966-2-1)
-const M_XYZ_SRGB = [
-  [ 3.2406, -1.5372, -0.4986],
-  [-0.9689,  1.8758,  0.0415],
-  [ 0.0557, -0.2040,  1.0570],
-];
+// Bradford CAT adapts from the illuminant's computed white point to D65
+// so that a perfect white reflector always displays as #ffffff regardless
+// of illuminant. Lab uses the same computed white point so a perfect
+// white reflector always gives L*=100, a*=0, b*=0.
 
 function mat3x3(m, v) {
   return [
@@ -244,13 +238,52 @@ function mat3x3(m, v) {
   ];
 }
 
+// Bradford cone-response matrix and its inverse
+const BRADFORD = [
+  [ 0.8951,  0.2664, -0.1614],
+  [-0.7502,  1.7135,  0.0367],
+  [ 0.0389, -0.0685,  1.0296],
+];
+const BRADFORD_INV = [
+  [ 0.9869929, -0.1470543,  0.1599627],
+  [ 0.4323053,  0.5183603,  0.0492912],
+  [-0.0085287,  0.0400428,  0.9684867],
+];
+
+// D65 destination white (fixed — all illuminants adapt to this)
+const D65_WP = { Xn: 95.047, Yn: 100, Zn: 108.883 };
+
+// src = computed illuminant white {Xn,Yn,Zn} from computeXYZ.
+// Using computed (not reference) whites means the Bradford ratio is
+// exactly 1 for a perfect reflector, so white → white on every illuminant.
+function bradfordAdapt(xyz, src) {
+  const srcCone = mat3x3(BRADFORD, [src.Xn, src.Yn, src.Zn]);
+  const dstCone = mat3x3(BRADFORD, [D65_WP.Xn, D65_WP.Yn, D65_WP.Zn]);
+  const xyzCone = mat3x3(BRADFORD, [xyz.X, xyz.Y, xyz.Z]);
+  const scaled  = [
+    xyzCone[0] * dstCone[0] / srcCone[0],
+    xyzCone[1] * dstCone[1] / srcCone[1],
+    xyzCone[2] * dstCone[2] / srcCone[2],
+  ];
+  const [X, Y, Z] = mat3x3(BRADFORD_INV, scaled);
+  return { X, Y, Z };
+}
+
+// D65-adapted XYZ → linear sRGB (IEC 61966-2-1)
+const M_XYZ_SRGB = [
+  [ 3.2406, -1.5372, -0.4986],
+  [-0.9689,  1.8758,  0.0415],
+  [ 0.0557, -0.2040,  1.0570],
+];
+
 function srgbGamma(c) {
   return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
 }
 
-// xyz: {X, Y, Z} where Y=100 for perfect white under D65 (k-normalized)
-function xyzToSRGB(xyz) {
-  const lin = mat3x3(M_XYZ_SRGB, [xyz.X / 100, xyz.Y / 100, xyz.Z / 100]);
+// wp = computed illuminant white {Xn,Yn,Zn} (same object used for Lab)
+function xyzToSRGB(xyz, wp) {
+  const adapted = bradfordAdapt(xyz, wp);
+  const lin = mat3x3(M_XYZ_SRGB, [adapted.X / 100, adapted.Y / 100, adapted.Z / 100]);
   const r = srgbGamma(lin[0]);
   const g = srgbGamma(lin[1]);
   const b = srgbGamma(lin[2]);
@@ -626,8 +659,9 @@ function computeColorResult(illuminantKey) {
   const spd = SPD[illuminantKey];
   const samples = evaluateSpline(controlPoints).map(v => v / 100); // 0–1
   const xyz = computeXYZ(samples, spd);
-  const lab = xyzToLab(xyz, { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn });
-  const srgb = xyzToSRGB(xyz);
+  const wp   = { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn };
+  const lab  = xyzToLab(xyz, wp);
+  const srgb = xyzToSRGB(xyz, wp);
   return { illuminantKey, xyz, lab, srgb };
 }
 
@@ -693,7 +727,7 @@ function updateSwatchesLive() {
   const samples = evaluateSpline(controlPoints).map(v => v / 100);
   activeIlluminants.forEach(key => {
     const xyz = computeXYZ(samples, SPD[key]);
-    const srgb = xyzToSRGB(xyz);
+    const srgb = xyzToSRGB(xyz, { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn });
     const card = document.querySelector(`.color-card[data-illuminant="${key}"]`);
     if (card) {
       const swatch = card.querySelector('.color-swatch');
