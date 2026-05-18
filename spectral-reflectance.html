@@ -651,9 +651,98 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   updateFull();
 });
 
-// Stubs — replaced with real implementations in Tasks 9–12
-function updateSwatchesLive() {}
-function updateFull() {}
+// ── Color Computation ────────────────────────────────────────
+// Returns full color result for one illuminant given current controlPoints
+function computeColorResult(illuminantKey) {
+  const spd = SPD[illuminantKey];
+  const samples = evaluateSpline(controlPoints).map(v => v / 100); // 0–1
+  const xyz = computeXYZ(samples, spd);
+  const lab = xyzToLab(xyz, { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn });
+  const srgb = xyzToSRGB(xyz, { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn });
+  return { illuminantKey, xyz, lab, srgb };
+}
+
+// ── Color Cards ──────────────────────────────────────────────
+function renderColorCards(results) {
+  const panel = document.getElementById('output-panel');
+  panel.innerHTML = '';
+
+  results.forEach(res => {
+    const cfg = ILLUMINANT_CONFIG[res.illuminantKey];
+    const card = document.createElement('div');
+    card.className = 'color-card';
+    card.dataset.illuminant = res.illuminantKey;
+
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.background = res.srgb.hex;
+
+    const gamutBadge = document.createElement('div');
+    gamutBadge.className = 'gamut-badge';
+    gamutBadge.title = 'Color exceeds sRGB display gamut — actual appearance may be more vivid';
+    gamutBadge.textContent = '⚠ out of gamut';
+    gamutBadge.style.display = res.srgb.isClipped ? 'block' : 'none';
+    swatch.appendChild(gamutBadge);
+    card.appendChild(swatch);
+
+    const approx = document.createElement('div');
+    approx.className = 'approx-label';
+    approx.textContent = 'display approximation';
+    card.appendChild(approx);
+
+    const title = document.createElement('div');
+    title.className = 'card-illuminant';
+    title.style.color = cfg.chipColor;
+    title.textContent = cfg.label;
+    card.appendChild(title);
+
+    const rows = [
+      ['X', res.xyz.X.toFixed(2)],
+      ['Y', res.xyz.Y.toFixed(2)],
+      ['Z', res.xyz.Z.toFixed(2)],
+      ['L*', res.lab.L.toFixed(1)],
+      ['a*', res.lab.a.toFixed(1)],
+      ['b*', res.lab.b.toFixed(1)],
+      ['Hex', res.srgb.hex.toUpperCase()],
+    ];
+    rows.forEach(([label, val]) => {
+      const row = document.createElement('div');
+      row.className = 'value-row';
+      row.innerHTML = `${label} <span>${val}</span>`;
+      card.appendChild(row);
+    });
+
+    const metamBadge = document.createElement('div');
+    metamBadge.className = 'metameric-badge';
+    metamBadge.dataset.illuminant = res.illuminantKey;
+    metamBadge.textContent = 'metameric shift detected';
+    card.appendChild(metamBadge);
+
+    panel.appendChild(card);
+  });
+}
+
+// Live swatch-only update during drag (fast, skips Lab/CIEDE2000)
+function updateSwatchesLive() {
+  const samples = evaluateSpline(controlPoints).map(v => v / 100);
+  activeIlluminants.forEach(key => {
+    const xyz = computeXYZ(samples, SPD[key]);
+    const srgb = xyzToSRGB(xyz, { Xn: xyz.Xn, Yn: xyz.Yn, Zn: xyz.Zn });
+    const card = document.querySelector(`.color-card[data-illuminant="${key}"]`);
+    if (card) {
+      const swatch = card.querySelector('.color-swatch');
+      swatch.style.background = srgb.hex;
+    }
+  });
+}
+
+function updateFull() {
+  const results = activeIlluminants.map(computeColorResult);
+  renderColorCards(results);
+  checkMetamerism(results);
+}
+
+// Stub — replaced with real implementation in Task 12
 function checkMetamerism() {}
 
 // ── Startup ──────────────────────────────────────────────────
@@ -662,6 +751,7 @@ renderIlluminantChips();
 renderControlPoints();
 renderSpline();
 renderIlluminantOverlays();
+updateFull();
 </script>
 </body>
 </html>
