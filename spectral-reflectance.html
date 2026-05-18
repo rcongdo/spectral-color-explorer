@@ -293,7 +293,6 @@ function ciede2000(lab1, lab2) {
   const { L: L1, a: a1, b: b1 } = lab1;
   const { L: L2, a: a2, b: b2 } = lab2;
 
-  const Lbar = (L1 + L2) / 2;
   const C1 = Math.sqrt(a1 * a1 + b1 * b1);
   const C2 = Math.sqrt(a2 * a2 + b2 * b2);
   const Cbar7 = Math.pow((C1 + C2) / 2, 7);
@@ -502,6 +501,7 @@ document.addEventListener('mouseup', () => {
 
 // Hover tooltip
 document.getElementById('spectral-graph').addEventListener('mousemove', e => {
+  if (dragState) return;
   const handle = e.target.closest('.cp-handle');
   const tooltipG = document.getElementById('tooltip-group');
   tooltipG.innerHTML = '';
@@ -605,11 +605,6 @@ function renderIlluminantChips() {
     btn.className = 'illuminant-chip' + (activeIlluminants.includes(key) ? ' active' : '');
     btn.textContent = cfg.label;
     if (activeIlluminants.includes(key)) btn.style.background = cfg.chipColor;
-
-    // Disable unchosen chips when 3 are active
-    if (!activeIlluminants.includes(key) && activeIlluminants.length >= 3) {
-      btn.disabled = true;
-    }
 
     btn.addEventListener('click', () => toggleIlluminant(key));
     container.appendChild(btn);
@@ -732,6 +727,8 @@ function updateSwatchesLive() {
     if (card) {
       const swatch = card.querySelector('.color-swatch');
       swatch.style.background = srgb.hex;
+      const badge = swatch.querySelector('.gamut-badge');
+      if (badge) badge.style.display = srgb.isClipped ? 'block' : 'none';
     }
   });
 }
