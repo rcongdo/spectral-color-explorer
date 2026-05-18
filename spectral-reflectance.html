@@ -187,6 +187,28 @@ function evaluateSpline(cps) {
   }
   return result;
 }
+
+// ── XYZ Computation ─────────────────────────────────────────
+// reflectance: Array of 81 values in range [0,1]
+// spd: 81-element illuminant SPD array (raw, unnormalized)
+// Returns { X, Y, Z, Xn, Yn, Zn } where Yn = 100 by definition
+function computeXYZ(reflectance, spd) {
+  let kDenom = 0;
+  for (let i = 0; i < NM_COUNT; i++) kDenom += spd[i] * CMF_Y[i];
+  const k = 100 / kDenom;
+
+  let X = 0, Y = 0, Z = 0, Xn = 0, Yn = 0, Zn = 0;
+  for (let i = 0; i < NM_COUNT; i++) {
+    const s = spd[i];
+    X  += reflectance[i] * s * CMF_X[i];
+    Y  += reflectance[i] * s * CMF_Y[i];
+    Z  += reflectance[i] * s * CMF_Z[i];
+    Xn += s * CMF_X[i];
+    Yn += s * CMF_Y[i];
+    Zn += s * CMF_Z[i];
+  }
+  return { X: X * k, Y: Y * k, Z: Z * k, Xn: Xn * k, Yn: Yn * k, Zn: Zn * k };
+}
 </script>
 </body>
 </html>
