@@ -630,6 +630,27 @@ function toggleIlluminant(key) {
   updateFull();
 }
 
+// ── Presets + Reset ──────────────────────────────────────────
+document.getElementById('preset-select').addEventListener('change', e => {
+  const key = e.target.value;
+  if (!key || !PRESETS[key]) return;
+  controlPoints = [...PRESETS[key]];
+  e.target.value = '';        // reset dropdown to placeholder
+  renderControlPoints();
+  renderSpline();
+  updateFull();
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  controlPoints = [...PRESETS['flat-white']];
+  activeIlluminants = ['D65'];
+  renderIlluminantChips();
+  renderControlPoints();
+  renderSpline();
+  renderIlluminantOverlays();
+  updateFull();
+});
+
 // Stubs — replaced with real implementations in Tasks 9–12
 function updateSwatchesLive() {}
 function updateFull() {}
