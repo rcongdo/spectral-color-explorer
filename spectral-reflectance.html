@@ -441,8 +441,99 @@ function initGraph() {
   svg.appendChild(svgEl('g', { id: 'tooltip-group' }));
 }
 
+// ── Control Points ───────────────────────────────────────────
+const CP_WAVELENGTHS = [380,420,460,500,540,580,620,660,700,740,780];
+let dragState = null;        // { index, startY, startRefl }
+let selectedCP = null;       // index of keyboard-focused CP
+
+function renderControlPoints() {
+  const group = document.getElementById('cp-group');
+  group.innerHTML = '';
+  CP_WAVELENGTHS.forEach((wl, i) => {
+    const x = nmToSvgX(wl);
+    const y = reflToSvgY(controlPoints[i]);
+    const g = svgEl('g', { class: 'cp-handle' + (i === selectedCP ? ' selected' : '') });
+    g.dataset.index = i;
+    // Stem line
+    g.appendChild(svgEl('line', {
+      x1: x, y1: SVG_MT + SVG_PH, x2: x, y2: y,
+      stroke: '#1e3a5f', 'stroke-width': 1, 'stroke-dasharray': '2,3',
+    }));
+    // Handle
+    g.appendChild(svgEl('circle', {
+      cx: x, cy: y, r: 5,
+      fill: '#3b82f6', stroke: '#1e40af', 'stroke-width': 1.5,
+    }));
+    group.appendChild(g);
+  });
+}
+
+// Drag: mousedown on SVG dispatches to the closest CP handle
+document.getElementById('spectral-graph').addEventListener('mousedown', e => {
+  const handle = e.target.closest('.cp-handle');
+  if (!handle) return;
+  e.preventDefault();
+  const i = parseInt(handle.dataset.index);
+  selectedCP = i;
+  dragState = { index: i, startY: e.clientY, startRefl: controlPoints[i] };
+  renderControlPoints();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragState) return;
+  const svg = document.getElementById('spectral-graph');
+  const rect = svg.getBoundingClientRect();
+  const scaleY = 340 / rect.height;  // viewBox height / rendered height
+  const dy = (e.clientY - dragState.startY) * scaleY;
+  let newRefl = dragState.startRefl - (dy / SVG_PH) * 100;
+  const snap = document.getElementById('snap-toggle').checked;
+  newRefl = Math.max(0, Math.min(100, snap ? Math.round(newRefl) : newRefl));
+  controlPoints[dragState.index] = newRefl;
+  renderControlPoints();
+  renderSpline();
+  updateSwatchesLive();
+});
+
+document.addEventListener('mouseup', () => {
+  if (!dragState) return;
+  dragState = null;
+  updateFull();
+});
+
+// Hover tooltip
+document.getElementById('spectral-graph').addEventListener('mousemove', e => {
+  const handle = e.target.closest('.cp-handle');
+  const tooltipG = document.getElementById('tooltip-group');
+  tooltipG.innerHTML = '';
+  if (!handle) return;
+  const i = parseInt(handle.dataset.index);
+  const x = nmToSvgX(CP_WAVELENGTHS[i]);
+  const y = reflToSvgY(controlPoints[i]);
+  const bg = svgEl('rect', {
+    x: x - 32, y: y - 28, width: 64, height: 18, rx: 3,
+    fill: '#0f172a', stroke: '#334155', 'stroke-width': 1,
+  });
+  const txt = svgEl('text', {
+    x, y: y - 14, class: 'cp-tooltip',
+  });
+  txt.textContent = `${CP_WAVELENGTHS[i]}nm  ${Math.round(controlPoints[i])}%`;
+  tooltipG.appendChild(bg);
+  tooltipG.appendChild(txt);
+});
+
+document.getElementById('spectral-graph').addEventListener('mouseleave', () => {
+  document.getElementById('tooltip-group').innerHTML = '';
+});
+
+// Stubs — replaced with real implementations in Tasks 8–12
+function renderSpline() {}
+function updateSwatchesLive() {}
+function updateFull() {}
+function checkMetamerism() {}
+
 // ── Startup ──────────────────────────────────────────────────
 initGraph();
+renderControlPoints();
 </script>
 </body>
 </html>
