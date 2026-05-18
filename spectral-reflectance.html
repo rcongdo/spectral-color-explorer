@@ -525,8 +525,78 @@ document.getElementById('spectral-graph').addEventListener('mouseleave', () => {
   document.getElementById('tooltip-group').innerHTML = '';
 });
 
-// Stubs — replaced with real implementations in Tasks 8–12
-function renderSpline() {}
+// ── Spline Path ──────────────────────────────────────────────
+function renderSpline() {
+  const samples = evaluateSpline(controlPoints);
+  const group = document.getElementById('spline-path-group');
+  group.innerHTML = '';
+
+  const points = samples.map((r, i) => {
+    const nm = NM_START + i * NM_STEP;
+    return `${nmToSvgX(nm)},${reflToSvgY(r)}`;
+  }).join(' ');
+
+  // Filled area under curve
+  const firstX = nmToSvgX(NM_START);
+  const lastX  = nmToSvgX(NM_START + (NM_COUNT - 1) * NM_STEP);
+  const baseY  = reflToSvgY(0);
+  group.appendChild(svgEl('polygon', {
+    points: `${firstX},${baseY} ${points} ${lastX},${baseY}`,
+    fill: '#1e40af22', stroke: 'none',
+  }));
+
+  group.appendChild(svgEl('polyline', {
+    points,
+    fill: 'none', stroke: '#3b82f6', 'stroke-width': 2.5,
+    'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+  }));
+}
+
+// ── Illuminant SPD Overlays ───────────────────────────────────
+function renderIlluminantOverlays() {
+  const group = document.getElementById('illuminant-overlays');
+  group.innerHTML = '';
+
+  // Legend
+  const legend = document.getElementById('graph-legend');
+  legend.innerHTML = '';
+
+  activeIlluminants.forEach(key => {
+    const spd = SPD[key];
+    const cfg = ILLUMINANT_CONFIG[key];
+
+    // Normalize SPD to 0–100% range for display
+    const max = Math.max(...spd);
+    const normalized = spd.map(v => v / max * 100);
+
+    const points = normalized.map((v, i) => {
+      const nm = NM_START + i * NM_STEP;
+      return `${nmToSvgX(nm)},${reflToSvgY(v)}`;
+    }).join(' ');
+
+    const firstX = nmToSvgX(NM_START);
+    const lastX  = nmToSvgX(NM_START + (NM_COUNT - 1) * NM_STEP);
+    const baseY  = reflToSvgY(0);
+
+    group.appendChild(svgEl('polygon', {
+      points: `${firstX},${baseY} ${points} ${lastX},${baseY}`,
+      fill: cfg.color + '18', stroke: cfg.color + '55',
+      'stroke-width': 1,
+    }));
+
+    // Legend item
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    const dot = document.createElement('div');
+    dot.className = 'legend-dot';
+    dot.style.background = cfg.color;
+    item.appendChild(dot);
+    item.appendChild(document.createTextNode(cfg.label));
+    legend.appendChild(item);
+  });
+}
+
+// Stubs — replaced with real implementations in Tasks 9–12
 function updateSwatchesLive() {}
 function updateFull() {}
 function checkMetamerism() {}
@@ -534,6 +604,8 @@ function checkMetamerism() {}
 // ── Startup ──────────────────────────────────────────────────
 initGraph();
 renderControlPoints();
+renderSpline();
+renderIlluminantOverlays();
 </script>
 </body>
 </html>
