@@ -476,6 +476,34 @@ function initLabChart() {
   svg.appendChild(ticksGroup);
 }
 
+function renderLabChart(results) {
+  const dotsGroup  = document.getElementById('lab-dots');
+  const ticksGroup = document.getElementById('lab-ticks');
+  // Clear dynamic elements
+  while (dotsGroup.firstChild)  dotsGroup.removeChild(dotsGroup.firstChild);
+  while (ticksGroup.firstChild) ticksGroup.removeChild(ticksGroup.firstChild);
+
+  results.forEach(res => {
+    const cfg   = ILLUMINANT_CONFIG[res.illuminantKey];
+    const color = cfg.chipColor;
+    const { L, a, b } = res.lab;
+
+    // a*b* scatter dot
+    const pt = abToSvg(a, b);
+    dotsGroup.appendChild(svgEl('circle', {
+      cx: pt.x, cy: pt.y, r: 5,
+      fill: color
+    }));
+
+    // L* bar tick (14px wide, centered on bar)
+    const ty = lToSvgY(L);
+    ticksGroup.appendChild(svgEl('line', {
+      x1: LC_LX - 1, y1: ty, x2: LC_LX + LC_LW + 1, y2: ty,
+      stroke: color, 'stroke-width': '2'
+    }));
+  });
+}
+
 function svgEl(tag, attrs = {}) {
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -853,6 +881,7 @@ function updateFull() {
   const results = activeIlluminants.map(computeColorResult);
   renderColorCards(results);
   checkMetamerism(results);
+  renderLabChart(results);
 }
 
 function checkMetamerism(results) {
