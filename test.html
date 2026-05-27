@@ -321,36 +321,38 @@ function lToSvgY(L) {
   return LC_LY + (1 - L / 100) * LC_LH;
 }
 
-suite('abToSvg — coordinate mapping');
-let pt;
+document.addEventListener('DOMContentLoaded', () => {
+  suite('abToSvg — coordinate mapping');
+  let pt;
 
-pt = abToSvg(0, 0);
-assert('origin x', pt.x, 110, 0.001);
-assert('origin y', pt.y, 100, 0.001);
+  pt = abToSvg(0, 0);
+  assert('origin x', pt.x, 110, 0.001);
+  assert('origin y', pt.y, 100, 0.001);
 
-pt = abToSvg(-80, 80);
-assert('top-left x (a*=-80, b*=+80)', pt.x, 30, 0.001);
-assert('top-left y (a*=-80, b*=+80)', pt.y, 20, 0.001);
+  pt = abToSvg(-80, 80);
+  assert('top-left x (a*=-80, b*=+80)', pt.x, 30, 0.001);
+  assert('top-left y (a*=-80, b*=+80)', pt.y, 20, 0.001);
 
-pt = abToSvg(80, -80);
-assert('bottom-right x (a*=+80, b*=-80)', pt.x, 190, 0.001);
-assert('bottom-right y (a*=+80, b*=-80)', pt.y, 180, 0.001);
+  pt = abToSvg(80, -80);
+  assert('bottom-right x (a*=+80, b*=-80)', pt.x, 190, 0.001);
+  assert('bottom-right y (a*=+80, b*=-80)', pt.y, 180, 0.001);
 
-pt = abToSvg(80, 80);
-assert('top-right x (a*=+80, b*=+80)', pt.x, 190, 0.001);
-assert('top-right y (a*=+80, b*=+80)', pt.y, 20, 0.001);
+  pt = abToSvg(80, 80);
+  assert('top-right x (a*=+80, b*=+80)', pt.x, 190, 0.001);
+  assert('top-right y (a*=+80, b*=+80)', pt.y, 20, 0.001);
 
-pt = abToSvg(-80, -80);
-assert('bottom-left x (a*=-80, b*=-80)', pt.x, 30, 0.001);
-assert('bottom-left y (a*=-80, b*=-80)', pt.y, 180, 0.001);
+  pt = abToSvg(-80, -80);
+  assert('bottom-left x (a*=-80, b*=-80)', pt.x, 30, 0.001);
+  assert('bottom-left y (a*=-80, b*=-80)', pt.y, 180, 0.001);
 
-suite('lToSvgY — lightness bar mapping');
-assert('L*=100 (white) → top of bar', lToSvgY(100), 20, 0.001);
-assert('L*=0 (black) → bottom of bar', lToSvgY(0), 180, 0.001);
-assert('L*=50 (mid) → midpoint', lToSvgY(50), 100, 0.001);
-assert('L*=75 (3/4 up)', lToSvgY(75), 60, 0.001);
+  suite('lToSvgY — lightness bar mapping');
+  assert('L*=100 (white) → top of bar', lToSvgY(100), 20, 0.001);
+  assert('L*=0 (black) → bottom of bar', lToSvgY(0), 180, 0.001);
+  assert('L*=50 (mid) → midpoint', lToSvgY(50), 100, 0.001);
+  assert('L*=75 (3/4 up)', lToSvgY(75), 60, 0.001);
 
-summary();
+  summary();
+});
 </script>
 </body>
 </html>

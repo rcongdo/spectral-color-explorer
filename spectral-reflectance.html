@@ -44,7 +44,7 @@ button:hover { color: #e2e8f0; }
 #spectral-graph-wrap { flex: 1; min-width: 0; }
 #spectral-graph { display: block; width: 100%; }
 #graph-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; padding-bottom: 0.5rem; }
-#lab-chart { flex-shrink: 0; display: block; }
+#lab-chart { flex-shrink: 0; display: block; width: 220px; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: #475569; }
 .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
 
@@ -460,6 +460,13 @@ function initLabChart() {
   defs.appendChild(grad);
   svg.appendChild(defs);
 
+  // Clip path to constrain dots to the a*b* plot area
+  const clipDefs = svgEl('defs', {});
+  const clipPath = svgEl('clipPath', { id: 'ab-clip' });
+  clipPath.appendChild(svgEl('rect', { x: LC_X0, y: LC_Y0, width: LC_PW, height: LC_PH }));
+  clipDefs.appendChild(clipPath);
+  svg.appendChild(clipDefs);
+
   // Bar rectangle
   svg.appendChild(svgEl('rect', { x: LC_LX, y: LC_LY, width: LC_LW, height: LC_LH,
     fill: 'url(#lstar-grad)', stroke: '#1e293b', 'stroke-width': '1' }));
@@ -470,7 +477,7 @@ function initLabChart() {
   svg.appendChild(lLabelEl);
 
   // Dynamic group placeholders (cleared and redrawn by renderLabChart)
-  const dotsGroup = svgEl('g', { id: 'lab-dots' });
+  const dotsGroup = svgEl('g', { id: 'lab-dots', 'clip-path': 'url(#ab-clip)' });
   const ticksGroup = svgEl('g', { id: 'lab-ticks' });
   svg.appendChild(dotsGroup);
   svg.appendChild(ticksGroup);
@@ -498,7 +505,7 @@ function renderLabChart(results) {
     // L* bar tick (14px wide, centered on bar)
     const ty = lToSvgY(L);
     ticksGroup.appendChild(svgEl('line', {
-      x1: LC_LX - 1, y1: ty, x2: LC_LX + LC_LW + 1, y2: ty,
+      x1: LC_LX + 1, y1: ty, x2: LC_LX + LC_LW - 1, y2: ty,
       stroke: color, 'stroke-width': '2'
     }));
   });
