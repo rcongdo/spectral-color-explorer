@@ -40,9 +40,11 @@ select, button {
 select:focus, button:focus { outline: 1px solid #475569; }
 button:hover { color: #e2e8f0; }
 
-#graph-wrap { background: #0a1628; border-radius: 10px; padding: 1rem 1rem 0.5rem; margin-bottom: 1rem; }
+#graph-wrap { background: #0a1628; border-radius: 10px; padding: 1rem 1rem 0.5rem; margin-bottom: 1rem; display: flex; flex-direction: row; gap: 1rem; align-items: flex-start; }
+#spectral-graph-wrap { flex: 1; min-width: 0; }
 #spectral-graph { display: block; width: 100%; }
 #graph-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 0.5rem; padding-bottom: 0.5rem; }
+#lab-chart { flex-shrink: 0; display: block; }
 .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.7rem; color: #475569; }
 .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
 
@@ -107,8 +109,11 @@ button:hover { color: #e2e8f0; }
     </label>
   </div>
   <div id="graph-wrap">
-    <svg id="spectral-graph" viewBox="0 0 820 340"></svg>
-    <div id="graph-legend"></div>
+    <div id="spectral-graph-wrap">
+      <svg id="spectral-graph" viewBox="0 0 820 340"></svg>
+      <div id="graph-legend"></div>
+    </div>
+    <svg id="lab-chart" viewBox="0 0 220 300" width="220"></svg>
   </div>
   <div id="output-panel"></div>
 </div>
