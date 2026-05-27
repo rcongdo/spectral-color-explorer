@@ -390,9 +390,91 @@ function ciede2000(lab1, lab2) {
 // ── SVG Graph ────────────────────────────────────────────────
 const SVG_ML = 55, SVG_MT = 20, SVG_PW = 750, SVG_PH = 280;
 
+// Lab chart layout constants
+const LC_X0 = 30, LC_Y0 = 20, LC_PW = 160, LC_PH = 160, LC_AB_MAX = 80;
+const LC_LX = 200, LC_LY = 20, LC_LW = 16, LC_LH = 160;
+
+function abToSvg(a, b) {
+  const x = LC_X0 + (a + LC_AB_MAX) / (2 * LC_AB_MAX) * LC_PW;
+  const y = LC_Y0 + (1 - (b + LC_AB_MAX) / (2 * LC_AB_MAX)) * LC_PH;
+  return { x, y };
+}
+function lToSvgY(L) {
+  return LC_LY + (1 - L / 100) * LC_LH;
+}
+
 function nmToSvgX(nm) { return SVG_ML + (nm - 380) / 370 * SVG_PW; }
 function reflToSvgY(r) { return SVG_MT + (1 - r / 100) * SVG_PH; }
 function svgYToRefl(y) { return (1 - (y - SVG_MT) / SVG_PH) * 100; }
+
+function initLabChart() {
+  const svg = document.getElementById('lab-chart');
+  // Background (matches spectral graph)
+  svg.appendChild(svgEl('rect', { x: 0, y: 0, width: 220, height: 300, fill: '#0a1628' }));
+
+  // ── a*b* scatter sub-area ──────────────────────────────────
+  // Grid lines at ±40
+  const gridAttrs = { stroke: '#1e293b', 'stroke-width': '1' };
+  // a* = ±40 vertical lines
+  [-40, 40].forEach(a => {
+    const x = abToSvg(a, 0).x;
+    svg.appendChild(svgEl('line', { ...gridAttrs, x1: x, y1: LC_Y0, x2: x, y2: LC_Y0 + LC_PH }));
+  });
+  // b* = ±40 horizontal lines
+  [40, -40].forEach(b => {
+    const y = abToSvg(0, b).y;
+    svg.appendChild(svgEl('line', { ...gridAttrs, x1: LC_X0, y1: y, x2: LC_X0 + LC_PW, y2: y }));
+  });
+
+  // Origin crosshair (brighter)
+  const crossAttrs = { stroke: '#334155', 'stroke-width': '1' };
+  const ox = abToSvg(0, 0).x;
+  const oy = abToSvg(0, 0).y;
+  svg.appendChild(svgEl('line', { ...crossAttrs, x1: ox, y1: LC_Y0, x2: ox, y2: LC_Y0 + LC_PH }));
+  svg.appendChild(svgEl('line', { ...crossAttrs, x1: LC_X0, y1: oy, x2: LC_X0 + LC_PW, y2: oy }));
+
+  // Axis labels
+  const labelAttrs = { fill: '#475569', 'font-size': '9', 'font-family': 'system-ui, sans-serif' };
+  // a* label centered below x-axis
+  const aLabelEl = svgEl('text', { ...labelAttrs, x: LC_X0 + LC_PW / 2, y: LC_Y0 + LC_PH + 12, 'text-anchor': 'middle' });
+  aLabelEl.textContent = 'a*';
+  svg.appendChild(aLabelEl);
+  // b* label rotated -90° alongside y-axis
+  const bLabelEl = svgEl('text', { ...labelAttrs, x: 0, y: 0, 'text-anchor': 'middle',
+    transform: `rotate(-90) translate(${-(LC_Y0 + LC_PH / 2)}, 12)` });
+  bLabelEl.textContent = 'b*';
+  svg.appendChild(bLabelEl);
+
+  // Achromatic reference dot at origin
+  svg.appendChild(svgEl('circle', { cx: ox, cy: oy, r: 4, fill: '#334155', stroke: '#475569', 'stroke-width': '1' }));
+
+  // ── L* bar ────────────────────────────────────────────────
+  // Gradient definition
+  const defs = svgEl('defs', {});
+  const grad = svgEl('linearGradient', { id: 'lstar-grad', x1: '0', y1: '1', x2: '0', y2: '0',
+    gradientUnits: 'objectBoundingBox' });
+  const stop0 = svgEl('stop', { offset: '0%', 'stop-color': '#000000' });
+  const stop1 = svgEl('stop', { offset: '100%', 'stop-color': '#ffffff' });
+  grad.appendChild(stop0);
+  grad.appendChild(stop1);
+  defs.appendChild(grad);
+  svg.appendChild(defs);
+
+  // Bar rectangle
+  svg.appendChild(svgEl('rect', { x: LC_LX, y: LC_LY, width: LC_LW, height: LC_LH,
+    fill: 'url(#lstar-grad)', stroke: '#1e293b', 'stroke-width': '1' }));
+
+  // L* label above bar
+  const lLabelEl = svgEl('text', { ...labelAttrs, x: LC_LX + LC_LW / 2, y: LC_LY - 4, 'text-anchor': 'middle' });
+  lLabelEl.textContent = 'L*';
+  svg.appendChild(lLabelEl);
+
+  // Dynamic group placeholders (cleared and redrawn by renderLabChart)
+  const dotsGroup = svgEl('g', { id: 'lab-dots' });
+  const ticksGroup = svgEl('g', { id: 'lab-ticks' });
+  svg.appendChild(dotsGroup);
+  svg.appendChild(ticksGroup);
+}
 
 function svgEl(tag, attrs = {}) {
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -820,6 +902,7 @@ document.addEventListener('keydown', e => {
 
 // ── Startup ──────────────────────────────────────────────────
 initGraph();
+initLabChart();
 renderIlluminantChips();
 renderControlPoints();
 renderSpline();
